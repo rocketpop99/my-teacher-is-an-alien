@@ -188,21 +188,21 @@ def scene_bg(scene):
     }.get(scene, (30, 30, 30))
 
 def build_scene(scene):
-    actors = []
-    props = []
+    actors_local = []
+    props_local = []
     
-    player = Actor("You", "player", 120, HEIGHT // 2, BLUE, speed=4)
-    actors.append(player)
+    p = Actor("You", "player", 120, HEIGHT // 2, BLUE, speed=4)
+    actors_local.append(p)
     
     def npc(name, x, y, color, wander=True):
         a = Actor(name, "npc", x, y, color, speed=2, wander=wander)
-        actors.append(a)
-        props.append(a)
+        actors_local.append(a)
+        props_local.append(a)
     
     def prop(name, x, y):
         a = Actor(name, "prop", x, y, YELLOW, speed=0, wander=False)
-        actors.append(a)
-        props.append(a)
+        actors_local.append(a)
+        props_local.append(a)
     
     if scene == "schoolyard":
         npc("Susan Simmons", 320, 420, GREEN, wander=True)
@@ -215,7 +215,7 @@ def build_scene(scene):
         npc("Peter Thompson", 410, 360, (90, 210, 120), wander=True)
         npc("Duncan Dougal", 640, 470, BROWN, wander=True)
         t = Actor("Mr. Smith (Broxholm)", "npc", 760, 200, PURPLE, speed=0, wander=False)
-        actors.append(t); props.append(t)
+        actors_local.append(t); props_local.append(t)
         prop("Teacher Desk", 520, 520)
         prop("Hallway Door", 920, 120)
     
@@ -238,11 +238,11 @@ def build_scene(scene):
         npc("Peter Thompson", 300, 590, (90, 210, 120), wander=False)
         npc("Duncan Dougal", 390, 560, BROWN, wander=False)
         t = Actor("Mr. Smith (Broxholm)", "npc", 760, 230, PURPLE, speed=0, wander=False)
-        actors.append(t); props.append(t)
+        actors_local.append(t); props_local.append(t)
         prop("Stage Control", 720, 520)
         prop("Big Reveal Spot", 920, 120)
     
-    return player, actors, props
+    return p, actors_local, props_local
 
 def set_scene(scene):
     global player, actors, props
@@ -279,7 +279,9 @@ def begin_game():
 def restart_game():
     global S
     S = State()
-    begin_game()
+    set_scene("schoolyard")  # ensures globals are rebuilt
+# keep title -> start flow
+# (if you want instant restart into play, call begin_game() here instead)
 
 def ending(kind):
     if kind == "REVEAL":
@@ -289,13 +291,20 @@ def ending(kind):
         msg = ("You protect your friends first. The truth is messy, but you stay together.\n\nTHE END")
     else:
         msg = ("You confront him directly. Terrifying… but honest.\n\nTHE END")
-    
-    S.push(DialogChoice(msg + "\n\nPress 1 to restart, or ESC to quit.",
+
+    S.push(DialogChoice(
+                        msg + "\n\nPress 1 to restart, or ESC to quit.",
                         ["Restart", "Restart", "Restart"],
-                        lambda i: restart_game()))
-    S.next()
+                        lambda i: restart_game()
+                        ))
+            S.next()
+
+# ----------------------------
+# Scene interactions
+# ----------------------------
 
 def talk_to(name):
+    # SCHOOLYARD
     if S.scene == "schoolyard":
         if name == "Susan Simmons":
             def after(i):
@@ -303,11 +312,13 @@ def talk_to(name):
                 if i in (0, 1):
                     bump_suspicion()
                 S.toast_msg("Susan: “We need proof… and we need to be careful.”", 200)
+            
             S.push(DialogChoice(
                                 "Susan looks like she’s already solving something. “You feel it too, right?”",
                                 ["Ask what she noticed", "Agree and watch together", "Say she’s overreacting"],
                                 after
-                                )); S.next()
+                                ))
+            S.next()
     
         elif name == "Peter Thompson":
             def after(i):
@@ -315,11 +326,13 @@ def talk_to(name):
                 if i == 1:
                     bump_suspicion()
                 S.toast_msg("Peter: “This is either nothing… or the biggest thing ever.”", 220)
+            
             S.push(DialogChoice(
                                 "Peter grins nervously. “This might be the most interesting day ever.”",
                                 ["Tell him to stay calm", "Ask what he saw", "Ask him to help investigate"],
                                 after
-                                )); S.next()
+                                ))
+            S.next()
         
         elif name == "Duncan Dougal":
             def after(i):
@@ -327,11 +340,13 @@ def talk_to(name):
                 if i == 2:
                     bump_suspicion()
                 S.toast_msg("Duncan: “I’m not scared… I just hate surprises.”", 220)
+            
             S.push(DialogChoice(
                                 "Duncan sizes you up. “What are YOU staring at?”",
                                 ["Tell him nothing", "Ask him to help (carefully)", "Ask if he noticed the teacher"],
                                 after
-                                )); S.next()
+                                ))
+            S.next()
         
         elif name == "School Door":
             if S.flags["met_susan"] and S.flags["met_peter"] and S.flags["met_duncan"]:
@@ -340,10 +355,12 @@ def talk_to(name):
                                     ["Go in", "Go in", "Go in"],
                                     lambda i: (set_scene("classroom"),
                                                setattr(S, "objective", "Talk to Mr. Smith (Broxholm) and check the Teacher Desk."))
-                                    )); S.next()
+                                    ))
+                S.next()
             else:
                 S.toast_msg("Talk to Susan, Peter, and Duncan first.", 200)
 
+# CLASSROOM
 elif S.scene == "classroom":
     if name == "Mr. Smith (Broxholm)":
         def after(i):
@@ -351,11 +368,13 @@ elif S.scene == "classroom":
             bump_suspicion()
             S.toast_msg("Mr. Smith: “Observe carefully… and learn quickly.”", 220)
             S.objective = "Find a clue (Teacher Desk) and go to the hallway."
+            
             S.push(DialogChoice(
                                 "Mr. Smith writes one word on the board: “OBSERVE.” Then he turns too smoothly.",
                                 ["Ask a careful question", "Act normal", "Stay quiet and watch"],
                                 after
-                                )); S.next()
+                                ))
+            S.next()
         
         elif name == "Teacher Desk":
             if not S.flags["found_clue"]:
@@ -371,11 +390,13 @@ elif S.scene == "classroom":
                     else:
                         S.toast_msg("You close the desk quietly.", 180)
                     S.objective = "Head to the hallway."
+                
                 S.push(DialogChoice(
                                     "The teacher’s desk drawer sticks for a second… then opens.",
                                     ["Search carefully", "Look for a schedule clue", "Close it—too risky"],
                                     after
-                                    )); S.next()
+                                    ))
+                S.next()
             else:
                 S.toast_msg("You already searched the desk.", 160)
 
@@ -385,8 +406,10 @@ elif S.scene == "classroom":
                             ["Go out", "Go out", "Go out"],
                             lambda i: (set_scene("hallway"),
                                        setattr(S, "objective", "Check the Notice Board and decide your next move."))
-                            )); S.next()
+                            ))
+        S.next()
 
+# HALLWAY
 elif S.scene == "hallway":
     if name == "Notice Board":
         def after(i):
@@ -404,12 +427,14 @@ elif S.scene == "hallway":
                     S.objective = "Go to the Storage Door to regroup."
                 else:
                     S.objective = "You need more: find a clue AND study the symbols."
+    
         S.push(DialogChoice(
                             "The notice board is covered in papers. One page has markings that don’t look like school stuff.",
                             ["Study the weird page", "Wave Susan over", "Back away"],
                             after
-                            )); S.next()
-            
+                            ))
+            S.next()
+                
                             elif name == "Storage Door":
                                 if S.flags["found_clue"] and S.flags["learned_schedule"]:
                                     S.push(DialogChoice(
@@ -417,7 +442,8 @@ elif S.scene == "hallway":
                                                         ["Go in", "Go in", "Go in"],
                                                         lambda i: (set_scene("plan_room"),
                                                                    setattr(S, "objective", "Make a plan together (Idea Board)."))
-                                                        )); S.next()
+                                                        ))
+                                    S.next()
                                         else:
                                             S.toast_msg("Not ready. You need more evidence first.", 220)
                                                 
@@ -427,8 +453,10 @@ elif S.scene == "hallway":
                                                                         ["Yes", "Yes", "Yes"],
                                                                         lambda i: (set_scene("classroom"),
                                                                                    setattr(S, "objective", "Find a clue (Teacher Desk) and return."))
-                                                                        )); S.next()
+                                                                        ))
+                                                    S.next()
 
+# PLAN ROOM
 elif S.scene == "plan_room":
     if name == "Idea Board":
         def after(i):
@@ -437,66 +465,83 @@ elif S.scene == "plan_room":
             bump_suspicion()
             S.objective = "Go to the Auditorium Door."
                 S.toast_msg("Plan locked in. Time for the auditorium.", 220)
+            
             S.push(DialogChoice(
                                 "You huddle up and decide how to force the truth out.",
                                 ["Controlled distraction", "Public confrontation", "Bait-and-reveal"],
                                 after
-                                )); S.next()
+                                ))
+                    S.next()
                 
                 elif name == "Auditorium Door":
-                                if S.flags["ready_finale"]:
+                    if S.flags["ready_finale"]:
                 S.push(DialogChoice(
                                     "The auditorium is empty… but it feels like a stage waiting for one moment.",
                                     ["Enter", "Enter", "Enter"],
                                     lambda i: (set_scene("finale"),
                                                setattr(S, "objective", "Use Stage Control, then go to Big Reveal Spot."))
-                                    )); S.next()
-                else:
-                    S.toast_msg("Make a plan first (Idea Board).", 200)
-
-    elif name == "Back Hall":
-        S.push(DialogChoice(
-                            "Go back to the hallway?",
-                            ["Yes", "Yes", "Yes"],
-                            lambda i: (set_scene("hallway"),
-                                       setattr(S, "objective", "Finish gathering info, then regroup."))
-                            )); S.next()
-
-elif S.scene == "finale":
-    if name == "Stage Control":
-        def after(i):
-            bump_suspicion()
-            S.toast_msg("Lights shift. The ‘normal’ act feels thinner.", 240)
-            S.push(DialogChoice(
-                                "A stage control panel. One switch labeled: “AUDIO / LIGHTS.”",
-                                ["Flip it now", "Wait for him to approach", "Signal your friends first"],
-                                after
-                                )); S.next()
-        
-        elif name == "Big Reveal Spot":
-            # FIX: allow reveal if suspicion is high AND (made_plan OR ready_finale)
-            if S.flags["suspicious"] >= 3 and (S.flags["made_plan"] or S.flags["ready_finale"]):
-                def after(i):
-                    if i == 0: ending("REVEAL")
-                    elif i == 1: ending("SAVE")
-                    else: ending("BOLD")
-                S.push(DialogChoice(
-                                    "This is it. Time to reveal the truth.",
-                                    ["Reveal him publicly", "Protect your friends first", "Confront him directly"],
-                                    after
-                                    )); S.next()
+                                    ))
+        S.next()
             else:
-                S.toast_msg(f"Not ready: suspicion={S.flags['suspicious']} made_plan={S.flags['made_plan']} ready_finale={S.flags['ready_finale']}", 260)
+                S.toast_msg("Make a plan first (Idea Board).", 200)
 
-    elif name == "Mr. Smith (Broxholm)":
-        def after(i):
-            bump_suspicion()
-            S.toast_msg("Mr. Smith: “Observation is… instructive.”", 220)
-            S.push(DialogChoice(
-                                "He stands too calmly for an empty auditorium.",
-                                ["Ask what he is", "Ask what he wants", "Say nothing and watch"],
-                                after
-                                )); S.next()
+elif name == "Back Hall":
+    S.push(DialogChoice(
+                        "Go back to the hallway?",
+                        ["Yes", "Yes", "Yes"],
+                        lambda i: (set_scene("hallway"),
+                                   setattr(S, "objective", "Finish gathering info, then regroup."))
+                        ))
+                        S.next()
+                        
+                        # FINALE
+                        elif S.scene == "finale":
+                            if name == "Stage Control":
+                                def after(i):
+                                    bump_suspicion()
+                                    S.toast_msg("Lights shift. The ‘normal’ act feels thinner.", 240)
+                                        
+                                        S.push(DialogChoice(
+                                                            "A stage control panel. One switch labeled: “AUDIO / LIGHTS.”",
+                                                            ["Flip it now", "Wait for him to approach", "Signal your friends first"],
+                                                            after
+                                                            ))
+                                        S.next()
+                                            
+                                            elif name == "Big Reveal Spot":
+                                                # Reveal requirement: high suspicion AND plan made
+                                                if S.flags["suspicious"] >= 3 and (S.flags["made_plan"] or S.flags["ready_finale"]):
+                                                    def after(i):
+                                                        if i == 0:
+                                                            ending("REVEAL")
+                                                                elif i == 1:
+                                                                    ending("SAVE")
+                                                                        else:
+                                                                            ending("BOLD")
+                                                                                
+                                                                                S.push(DialogChoice(
+                                                                                                    "This is it. Time to reveal the truth.",
+                                                                                                    ["Reveal him publicly", "Protect your friends first", "Confront him directly"],
+                                                                                                    after
+                                                                                                    ))
+                                                                                S.next()
+                                                                                    else:
+                                                                                        S.toast_msg(
+                                                                                                    f"Not ready: suspicion={S.flags['suspicious']} made_plan={S.flags['made_plan']} ready_finale={S.flags['ready_finale']}",
+                                                                                                    260
+                                                                                                    )
+                                                                                            
+                                                                                            elif name == "Mr. Smith (Broxholm)":
+                                                                                                def after(i):
+                                                                                                    bump_suspicion()
+                                                                                                    S.toast_msg("Mr. Smith: “Observation is… instructive.”", 220)
+                                                                                                        
+                                                                                                        S.push(DialogChoice(
+                                                                                                                            "He stands too calmly for an empty auditorium.",
+                                                                                                                            ["Ask what he is", "Ask what he wants", "Say nothing and watch"],
+                                                                                                                            after
+                                                                                                                            ))
+                                                                                                        S.next()
 
 # ----------------------------
 # Controls
@@ -506,10 +551,15 @@ def handle_player_movement(keys):
     if S.dialog:
         return
     dx = dy = 0
-    if keys[pygame.K_LEFT] or keys[pygame.K_a]: dx -= player.speed
-    if keys[pygame.K_RIGHT] or keys[pygame.K_d]: dx += player.speed
-    if keys[pygame.K_UP] or keys[pygame.K_w]: dy -= player.speed
-    if keys[pygame.K_DOWN] or keys[pygame.K_s]: dy += player.speed
+    if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+        dx -= player.speed
+    if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+        dx += player.speed
+    if keys[pygame.K_UP] or keys[pygame.K_w]:
+        dy -= player.speed
+    if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+        dy += player.speed
+    
     player.rect.x += dx
     player.rect.y += dy
     clamp_rect(player.rect)
@@ -541,14 +591,15 @@ def draw_title(screen, FONT, BIG, HUGE):
     
     title = "MY TEACHER IS AN ALIEN"
     draw_text(screen, title, cx - HUGE.size(title)[0] // 2, 50, WHITE, HUGE)
+    
     byline = "by Cody"
     draw_text(screen, byline, cx - BIG.size(byline)[0] // 2, 130, YELLOW, BIG)
     
-    draw_text(screen, "ENTER = Start   |   ESC = Quit", cx - FONT.size("ENTER = Start   |   ESC = Quit")[0] // 2,
-              HEIGHT - 105, GRAY, FONT)
-              draw_text(screen, "Move: WASD/Arrows  •  Interact: E  •  Choose: 1/2/3",
-                        cx - FONT.size("Move: WASD/Arrows  •  Interact: E  •  Choose: 1/2/3")[0] // 2,
-                        HEIGHT - 75, GRAY, FONT)
+    line1 = "ENTER = Start   |   ESC = Quit"
+    draw_text(screen, line1, cx - FONT.size(line1)[0] // 2, HEIGHT - 105, GRAY, FONT)
+    
+    line2 = "Move: WASD/Arrows  •  Interact: E  •  Choose: 1/2/3"
+    draw_text(screen, line2, cx - FONT.size(line2)[0] // 2, HEIGHT - 75, GRAY, FONT)
 
 def draw_actors(screen):
     for a in actors:
@@ -583,6 +634,7 @@ def draw_ui(screen, FONT, BIG):
 def draw_dialog(screen, FONT):
     if not S.dialog:
         return
+    
     box = pygame.Rect(40, HEIGHT - 250, WIDTH - 80, 210)
     pygame.draw.rect(screen, BLACK, box, border_radius=14)
     pygame.draw.rect(screen, WHITE, box, 2, border_radius=14)
@@ -617,7 +669,7 @@ async def main():
     
     clock = pygame.time.Clock()
     
-    # create initial scene objects
+    # initial scene objects (title mode)
     set_scene("schoolyard")
     
     running = True
@@ -642,19 +694,23 @@ async def main():
                             interact()
                         if event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
                             try_choice(event.key)
+                
+                    # Allow restart from ending dialog with "1"
+                    if S.dialog and event.key == pygame.K_1 and "restart" in " ".join(S.dialog.choices).lower():
+                        try_choice(event.key)
 
-    # timers
-    if S.toast_timer > 0:
-        S.toast_timer -= 1
-            if S.toast_timer <= 0:
-                S.toast = ""
+# timers
+if S.toast_timer > 0:
+    S.toast_timer -= 1
+        if S.toast_timer <= 0:
+            S.toast = ""
             
             # update actors
             if S.mode == "play":
                 handle_player_movement(keys)
                 for a in actors:
                     a.update()
-
+    
         # draw
         if S.mode == "title":
             draw_title(screen, FONT, BIG, HUGE)
@@ -664,22 +720,22 @@ async def main():
                 draw_ui(screen, FONT, BIG)
                 draw_dialog(screen, FONT)
 
-# debug HUD (always visible)
-dbg = f"DEBUG mode={S.mode} scene={S.scene} dialog={'Y' if S.dialog else 'N'}"
-    draw_text(screen, dbg, 12, HEIGHT - 26, WHITE, FONT)
-    
-    pygame.display.flip()
-        await asyncio.sleep(0)
-        
-        except Exception as e:
-            # crash overlay
-            screen.fill((30, 0, 0))
-            pygame.draw.rect(screen, BLACK, (30, 30, WIDTH - 60, HEIGHT - 60), border_radius=12)
-            pygame.draw.rect(screen, WHITE, (30, 30, WIDTH - 60, HEIGHT - 60), 2, border_radius=12)
-            draw_text(screen, "CRASH", 60, 60, (255, 180, 180), HUGE)
-            msg = f"{type(e).__name__}: {e}"
-            for i, line in enumerate(wrap_lines(msg, WIDTH - 140, FONT)[:12]):
-                draw_text(screen, line, 60, 140 + i * 28, WHITE, FONT)
+        # debug HUD (always visible)
+        dbg = f"DEBUG mode={S.mode} scene={S.scene} dialog={'Y' if S.dialog else 'N'}"
+            draw_text(screen, dbg, 12, HEIGHT - 26, WHITE, FONT)
+            
+            pygame.display.flip()
+            await asyncio.sleep(0)
+
+except Exception as e:
+    # crash overlay
+    screen.fill((30, 0, 0))
+    pygame.draw.rect(screen, BLACK, (30, 30, WIDTH - 60, HEIGHT - 60), border_radius=12)
+    pygame.draw.rect(screen, WHITE, (30, 30, WIDTH - 60, HEIGHT - 60), 2, border_radius=12)
+    draw_text(screen, "CRASH", 60, 60, (255, 180, 180), HUGE)
+    msg = f"{type(e).__name__}: {e}"
+        for i, line in enumerate(wrap_lines(msg, WIDTH - 140, FONT)[:12]):
+            draw_text(screen, line, 60, 140 + i * 28, WHITE, FONT)
             pygame.display.flip()
             await asyncio.sleep(0)
 
