@@ -1,0 +1,12 @@
+# pygbag build output
+game/build/
+game/web/
+game/build/web-cache/
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
