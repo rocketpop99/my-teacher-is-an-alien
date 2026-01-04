@@ -780,30 +780,78 @@ async def main():
     HUGE = pygame.font.Font(None, 64)
     
     # Audio init (safe even if browser blocks until interaction)
-    try:
-        pygame.mixer.init(frequency=44100, size=-16, channels=1, buffer=512)
-        SFX_SELECT = make_tone(880, ms=80, volume=0.25, wave="square")
-        SFX_INTERACT = make_tone(440, ms=70, volume=0.20, wave="triangle")
-        
-        ROOM_MUSIC = {
-            "schoolyard": make_room_loop(220, volume=0.10),
-            "classroom":  make_room_loop(246, volume=0.10),
-            "hallway":    make_room_loop(196, volume=0.10),
-            "plan_room":  make_room_loop(262, volume=0.10),
-            "finale":     make_room_loop(174, volume=0.11),
-}
-    except Exception:
-        # Audio not available (okay)
-        SFX_SELECT = None
-        SFX_INTERACT = None
-        ROOM_MUSIC = {}
+    SFX_SELECT = None
+    SFX_INTERACT = None
+    ROOM_MUSIC = {}
+
 
 clock = pygame.time.Clock()
 player, all_sprites, props = build_scene(state.scene)
 
 running = True
-    while running:
+error_text = None
+
+while running:
+    try:
         clock.tick(FPS)
+        keys = pygame.key.get_pressed()
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+        
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                
+                if state.mode == "title":
+                    if event.key == pygame.K_RETURN:
+                        begin_game()
+                    continue
+                
+                if event.key == pygame.K_e and not state.active_dialog:
+                    interact()
+                
+                if event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
+                    try_choice(event.key)
+
+    if state.mode == "title":
+        draw_title_screen(screen)
+        pygame.display.flip()
+        await asyncio.sleep(0)
+        continue
+        
+        handle_player_movement(keys)
+        
+        for a in all_sprites:
+            if isinstance(a, Actor):
+                a.update()
+
+update_toast()
+
+draw_background(screen)
+for a in all_sprites:
+    draw_actor(screen, a)
+        
+        draw_ui(screen, player, props)
+        draw_dialog(screen)
+        
+        pygame.display.flip()
+        await asyncio.sleep(0)
+    
+    except Exception as e:
+        # Show error on screen
+        error_text = f"{type(e).__name__}: {e}"
+        screen.fill((10, 0, 0))
+        pygame.draw.rect(screen, (0, 0, 0), (30, 30, WIDTH - 60, HEIGHT - 60), border_radius=12)
+        pygame.draw.rect(screen, (255, 255, 255), (30, 30, WIDTH - 60, HEIGHT - 60), 2, border_radius=12)
+        draw_text(screen, "CRASH", 60, 60, (255, 180, 180), HUGE)
+        for i, line in enumerate(wrap_lines(error_text, WIDTH - 140, FONT)[:10]):
+            draw_text(screen, line, 60, 140 + i * 28, (240, 240, 240), FONT)
+        draw_text(screen, "Open browser DevTools Console (F12) for more.", 60, HEIGHT - 90, (200, 200, 200), FONT)
+        pygame.display.flip()
+        await asyncio.sleep(0)
+
         keys = pygame.key.get_pressed()
         
         for event in pygame.event.get():
