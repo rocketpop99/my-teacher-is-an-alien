@@ -2,10 +2,9 @@ import pygame
 import random
 import math
 import asyncio
-from array import array
 
 # ---------------------------------------------------------
-# My Teacher Is an Alien - BROWSER SAFE MODE
+# My Teacher Is an Alien - SILENT VERSION (NO AUDIO)
 # ---------------------------------------------------------
 
 WIDTH, HEIGHT = 1000, 650
@@ -31,66 +30,11 @@ PAPER = (210, 210, 210)
 
 WORLD = pygame.Rect(0, 0, WIDTH, HEIGHT)
 
-# ---------------- Audio (SAFE MODE) ----------------
-
-def _clamp16(n: int) -> int:
-    return max(-32768, min(32767, n))
-
-def make_tone(freq_hz=440, ms=150, volume=0.25, sample_rate=44100, wave="sine"):
-    try:
-        n_samples = int(sample_rate * (ms / 1000.0))
-        buf = array("h")
-        amp = int(32767 * volume)
-        
-        for i in range(n_samples):
-            t = i / sample_rate
-            if wave == "square":
-                v = amp if math.sin(2 * math.pi * freq_hz * t) >= 0 else -amp
-            elif wave == "triangle":
-                phase = (freq_hz * t) % 1.0
-                tri = 2.0 * abs(2.0 * phase - 1.0) - 1.0
-                v = int(amp * tri)
-            else:
-                v = int(amp * math.sin(2 * math.pi * freq_hz * t))
-            buf.append(_clamp16(v))
-        
-        return pygame.mixer.Sound(buffer=buf.tobytes())
-    except Exception as e:
-        print(f"Audio Gen Error: {e}")
-        return None
-
-def make_room_loop(freq=220, volume=0.12):
-    return make_tone(freq_hz=freq, ms=1400, volume=volume, wave="triangle")
-
-SFX_SELECT = None
-SFX_INTERACT = None
-ROOM_MUSIC = {}
-_current_music = None
-
-def start_room_music(scene_name: str):
-    global _current_music
-    # SAFETY CHECK: If mixer isn't working, just return
-    if not pygame.mixer.get_init():
-        return
-
-    try:
-        if _current_music is not None:
-            _current_music.stop()
-
-        snd = ROOM_MUSIC.get(scene_name)
-        if snd:
-            _current_music = snd
-            # CRITICAL FIX: In some browsers, playing immediately causes a crash.
-            # If you still get a black screen, comment out the line below:
-            snd.play(loops=-1)
-except Exception as e:
-    print(f"Music Play Error: {e}")
-
 # ---------------- Text helpers ----------------
 
 def draw_text(surf, text, x, y, color=WHITE, font=None):
     if font is None: font = FONT
-    if font is None: return # Still loading
+    if font is None: return
     
     try:
         img = font.render(text, True, color)
@@ -363,7 +307,6 @@ def set_scene(new_scene):
     state.scene = new_scene
     player, all_sprites, props = build_scene(state.scene)
     state.set_toast(f"Entered: {new_scene.upper()}", 150)
-    start_room_music(new_scene)
 
 # ---------------- Story Logic ----------------
 
@@ -393,9 +336,6 @@ def restart_game():
 def interact():
     nearest, d = nearest_interactable(player, props)
     if nearest and d <= 85:
-        if SFX_INTERACT:
-            try: SFX_INTERACT.play()
-            except: pass
         talk_to(nearest.name)
     else:
         state.set_toast("Nothing to interact with nearby.", 120)
@@ -560,9 +500,6 @@ def try_choice(key):
     elif key == pygame.K_2: idx = 1
     elif key == pygame.K_3: idx = 2
     if idx is None or idx >= len(state.active_dialog.choices): return
-    if SFX_SELECT:
-        try: SFX_SELECT.play()
-        except: pass
     state.active_dialog.on_choose(idx)
     state.next_dialog()
 
@@ -590,15 +527,13 @@ def draw_title_screen(screen):
 async def main():
     global FONT, BIG, HUGE
     global player, all_sprites, props
-    global SFX_SELECT, SFX_INTERACT, ROOM_MUSIC
     
     pygame.init()
     pygame.display.set_mode((WIDTH, HEIGHT))
     screen = pygame.display.get_surface()
     pygame.display.set_caption("My Teacher Is an Alien")
     
-    # FIX: Use SysFont. 'None' (default) often fails on web.
-    # We try common web-safe fonts.
+    # FIX: Use SysFont for browser compatibility
     pygame.font.init()
     try:
         FONT = pygame.font.SysFont("monospace", 24)
@@ -610,23 +545,7 @@ async def main():
         BIG = pygame.font.Font(None, 40)
         HUGE = pygame.font.Font(None, 64)
 
-    # Audio with Try/Catch
-    try:
-        pygame.mixer.init(frequency=44100, size=-16, channels=1, buffer=512)
-        SFX_SELECT = make_tone(880, ms=80, volume=0.25, wave="square")
-        SFX_INTERACT = make_tone(440, ms=70, volume=0.20, wave="triangle")
-        ROOM_MUSIC = {
-            "schoolyard": make_room_loop(220, volume=0.10),
-            "classroom":  make_room_loop(246, volume=0.10),
-            "hallway":    make_room_loop(196, volume=0.10),
-            "plan_room":  make_room_loop(262, volume=0.10),
-            "finale":     make_room_loop(174, volume=0.11),
-    }
-except Exception as e:
-    print(f"Audio Init Failed: {e}")
-    SFX_SELECT = None
-        SFX_INTERACT = None
-        ROOM_MUSIC = {}
+    # REMOVED AUDIO INIT ENTIRELY TO FIX BROWSER CRASH
 
     clock = pygame.time.Clock()
 
